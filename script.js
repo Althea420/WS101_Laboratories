@@ -1,141 +1,112 @@
+const API_BASE = "http://localhost:8080"; // backend base URL
 
-let attendees = [
-  { name: "Rinafe", company: "Microsoft", role: "Speaker", sessions: 5 },
-  { name: "Ondoy", company: "InnoSoft", role: "Attendee", sessions: 3 },
-  { name: "Maria", company: "TechCorp", role: "Organizer", sessions: 7 },
-  { name: "Diana", company: "WebSolutions", role: "Speaker", sessions: 4 }
-];
+const usernameInput = document.getElementById("username");
+const descriptionInput = document.getElementById("description");
+const targetDateInput = document.getElementById("targetDate");
+const doneInput = document.getElementById("done");
+const todoList = document.getElementById("todoList");
+const message = document.getElementById("message");
 
-const outputEl = document.getElementById('output');
+document.getElementById("loadBtn").addEventListener("click", loadTodos);
+document.getElementById("addBtn").addEventListener("click", addTodo);
 
-function showOutput(data) {
-  if (typeof data === 'string') {
-    document.getElementById("output").innerHTML = `<p>${data}</p>`;
-  } 
-  else if (Array.isArray(data)) {
-    let html = "<table border='1' cellpadding='6'><tr><th>Name</th><th>Company</th><th>Role</th><th>Sessions</th></tr>";
-    data.forEach(a => {
-      html += `<tr>
-                 <td>${a.name}</td>
-                 <td>${a.company}</td>
-                 <td>${a.role}</td>
-                 <td>${a.sessions}</td>
-               </tr>`;
-    });
-    html += "</table>";
-    document.getElementById("output").innerHTML = html;
-  } 
-  else if (typeof data === 'object') {
-    let html = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
-    document.getElementById("output").innerHTML = html;
+async function loadTodos() {
+  const username = usernameInput.value.trim();
+  if (!username) {
+    showMessage("Please enter a username first!", "red");
+    return;
   }
+
+  const response = await fetch(`${API_BASE}/users/${username}/todos`);
+  const todos = await response.json();
+  displayTodos(todos);
 }
 
+async function addTodo() {
+  const username = usernameInput.value.trim();
+  const description = descriptionInput.value.trim();
+  const targetDate = targetDateInput.value;
+  const done = doneInput.checked;
 
-function escapeHtml(str) {
-  if (typeof str !== 'string') return str;
-  return str.replaceAll('&','&amp;')
-            .replaceAll('<','&lt;')
-            .replaceAll('>','&gt;');
-}
-
-
-function countAttendees() {
-  return attendees.length;
-}
-
-function filterByRole(role) {
-  return attendees.filter(a => a.role === role);
-}
-
-function findMostSessions() {
-  if (attendees.length === 0) return null;
-  return attendees.reduce((best, cur) => (cur.sessions > best.sessions ? cur : best), attendees[0]);
-}
-
-function groupByCompany() {
-  return attendees.reduce((groups, a) => {
-    if (!groups[a.company]) groups[a.company] = [];
-    groups[a.company].push(a);
-    return groups;
-  }, {});
-}
-
-function fetchNewAttendees() {
-  const simulatedNew = [
-    { name: "Althea", company: "CloudNet", role: "Attendee", sessions: 2 },
-    { name: "Jade", company: "TechCorp", role: "Speaker", sessions: 6 }
-  ];
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      attendees = attendees.concat(simulatedNew);
-      resolve(simulatedNew);
-    }, 1000); 
-  });
-}
-
-document.getElementById('btn-count').addEventListener('click', () => {
-  showOutput(`Total attendees: ${countAttendees()}`);
-});
-
-document.getElementById('btn-filter-speaker').addEventListener('click', () => {
-  showOutput(filterByRole('Speaker'));
-});
-
-document.getElementById('btn-most-sessions').addEventListener('click', () => {
-  const best = findMostSessions();
-  showOutput(best ? `Most sessions: ${best.name} (${best.sessions})` : 'No attendees');
-});
-
-document.getElementById('btn-group-company').addEventListener('click', () => {
-  const grouped = groupByCompany();
-  const simple = {};
-  Object.keys(grouped).forEach(company => {
-    simple[company] = grouped[company].map(a => a.name);
-  });
-  showOutput(simple);
-});
-
-document.getElementById('btn-group-company').addEventListener('click', () => {
-  const grouped = groupByCompany();
-
-  let html = "<table border='1' cellpadding='6'><tr><th>Company</th><th>Attendees</th></tr>";
-  Object.keys(grouped).forEach(company => {
-    const names = grouped[company].map(a => a.name).join(", ");
-    html += `<tr>
-               <td>${company}</td>
-               <td>${names}</td>
-             </tr>`;
-  });
-  html += "</table>";
-
-  document.getElementById("output").innerHTML = html;
-});
-
-
-document.getElementById('btn-fetch').addEventListener('click', async () => {
-  showOutput('Fetching new attendees...');
-  try {
-    const added = await fetchNewAttendees();
-
-    let html = `<p><b>Fetched and added new attendees!</b></p>`;
-    html += "<table border='1' cellpadding='6'><tr><th>Name</th><th>Company</th><th>Role</th><th>Sessions</th></tr>";
-    added.forEach(a => {
-      html += `<tr>
-                 <td>${a.name}</td>
-                 <td>${a.company}</td>
-                 <td>${a.role}</td>
-                 <td>${a.sessions}</td>
-               </tr>`;
-    });
-    html += "</table>";
-    html += `<p><b>Total attendees now:</b> ${attendees.length}</p>`;
-
-    document.getElementById("output").innerHTML = html;
-
-  } catch (err) {
-    showOutput('Fetch failed: ' + String(err));
+  if (!username || !description || !targetDate) {
+    showMessage("Please fill in all fields!", "red");
+    return;
   }
-});
 
+  const todo = { description, targetDate, done };
+
+  await fetch(`${API_BASE}/users/${username}/todos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(todo),
+  });
+
+  showMessage("Todo added successfully!");
+  loadTodos();
+  clearInputs();
+}
+
+async function updateTodo(username, id, updatedTodo) {
+  await fetch(`${API_BASE}/users/${username}/todos/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updatedTodo),
+  });
+  showMessage("Todo updated!");
+  loadTodos();
+}
+
+
+async function deleteTodo(username, id) {
+  await fetch(`${API_BASE}/users/${username}/todos/${id}`, {
+    method: "DELETE",
+  });
+  showMessage("Todo deleted!");
+  loadTodos();
+}
+
+function displayTodos(todos) {
+  todoList.innerHTML = "";
+  todos.forEach((todo) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span>${todo.description} - ${todo.targetDate} - ${todo.done ? "✅" : "❌"}</span>
+      <div class="todo-actions">
+        <button onclick="editTodo('${todo.id}', '${todo.description}', '${todo.targetDate}', ${todo.done})">Edit</button>
+        <button onclick="deleteTodo('${usernameInput.value}', '${todo.id}')">Delete</button>
+      </div>
+    `;
+    todoList.appendChild(li);
+  });
+}
+
+function editTodo(id, desc, date, done) {
+  descriptionInput.value = desc;
+  targetDateInput.value = date;
+  doneInput.checked = done;
+
+  const username = usernameInput.value;
+  document.getElementById("addBtn").textContent = "Update";
+  document.getElementById("addBtn").onclick = async () => {
+    const updatedTodo = {
+      description: descriptionInput.value,
+      targetDate: targetDateInput.value,
+      done: doneInput.checked,
+    };
+    await updateTodo(username, id, updatedTodo);
+    document.getElementById("addBtn").textContent = "Add";
+    document.getElementById("addBtn").onclick = addTodo;
+  };
+}
+
+function clearInputs() {
+  descriptionInput.value = "";
+  targetDateInput.value = "";
+  doneInput.checked = false;
+}
+
+function showMessage(msg, color = "green") {
+  message.style.color = color;
+  message.textContent = msg;
+  setTimeout(() => (message.textContent = ""), 3000);
+}
